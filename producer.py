@@ -7,7 +7,7 @@ rabbitmq_namespace = "default"
 rabbitmq_port = 5672
 
 def send_messages(file_path):
-    # Set up the credentials and connection parameters
+    # Creds and Connection (For prod - saved in store key like Hashicorp Vault)
     credentials = pika.PlainCredentials('corti', 'corti')
     parameters = pika.ConnectionParameters(
         host=f"{rabbitmq_service_name}.{rabbitmq_namespace}.svc.cluster.local",
@@ -15,11 +15,11 @@ def send_messages(file_path):
         credentials=credentials
     )
     
-    # Establish the connection
+    # Connection
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
-    # Make sure the 'logs' queue is declared
+    # Logs Q
     channel.queue_declare(queue='logs', durable=True)
     
     # Continuously send messages
@@ -35,7 +35,7 @@ def send_messages(file_path):
                 )
                 print(" [x] Sent %r" % line)
         
-        # Wait for a specified time interval (e.g., 60 seconds) before sending the messages again
+        # 1 sec interval;
         time.sleep(1)
     
     # Note: The connection close statement is never reached in this setup; you would need to handle it appropriately if you ever want to exit cleanly.

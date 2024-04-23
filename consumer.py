@@ -1,29 +1,36 @@
 import pika
 import sys
 import time
+from prometheus_client import start_http_server, Counter
 
 rabbitmq_service_name = "my-rabbitmq"
 rabbitmq_namespace = "default"
 rabbitmq_port = 5672
 
+# Define a counter metric for tracking the number of messages processed
+messages_processed_counter = Counter('messages_processed_total', 'Total number of processed messages')
+
 def receive_messages(output_file):
+    # Prometheus metrics on port 8000
+    start_http_server(8000)
+
     while True:
         try:
-            # Set up the credentials and connection parameters
+            # Creds and Connection (For prod - saved in store key like Hashicorp Vault)
             credentials = pika.PlainCredentials('corti', 'corti')
             parameters = pika.ConnectionParameters(
                 host=f"{rabbitmq_service_name}.{rabbitmq_namespace}.svc.cluster.local",
                 port=rabbitmq_port,
                 credentials=credentials,
-                heartbeat=600,  # Configure heartbeat timeout to ensure connection is alive
-                blocked_connection_timeout=300  # Timeout for blocked connection (e.g., RabbitMQ is overloaded)
+                heartbeat=600,
+                blocked_connection_timeout=300
             )
             
-            # Establish the connection
+            # Connection
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
 
-            # Ensure the 'logs' queue is declared
+            # Logs Q
             channel.queue_declare(queue='logs', durable=True)
 
             # Set up the consumer quality of service
@@ -33,8 +40,10 @@ def receive_messages(output_file):
             def callback(ch, method, properties, body):
                 with open(output_file, 'a') as file:
                     message = body.decode()
-                    file.write(message + '\n')  # Write each message on a new line
+                    file.write(message + '\n')
                     print(" [x] Received %r" % message)
+                    # Increment the messages processed counter for each received message
+                    messages_processed_counter.inc()
 
             # Setup the consumption on the correct queue name
             channel.basic_consume(queue='logs', on_message_callback=callback, auto_ack=True)
@@ -45,10 +54,10 @@ def receive_messages(output_file):
 
         except pika.exceptions.AMQPConnectionError:
             print("Connection was closed, retrying...")
-            time.sleep(10)  # Wait before retrying to reconnect
+            time.sleep(10)
         except Exception as e:
             print(f"An error occurred: {e}")
-            break  # Exit loop on unexpected errors
+            break
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
