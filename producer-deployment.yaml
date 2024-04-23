@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: producer
+  template:
+    metadata:
+      labels:
+        app: producer
+    spec:
+      containers:
+      - name: producer
+        image: simonliska/tuesday:crti-latest
+        imagePullPolicy: Always
+        command: ["python", "producer.py", "input.txt"] 
+        # env:
+        # - name: RABBITMQ_URL
+        #   value: "amqp://user:PASSWORD@my-rabbitmq.default.svc.cluster.local"
